@@ -88,7 +88,8 @@ if st.button("Add to Invoice"):
         st.session_state['items'] = []
     net = round(g_wt - s_wt, 3)
     chargeable_weight = round(net * 1.15, 3)
-    amt = round(chargeable_weight * (rates_input[m_type] + making), 2)
+    amt = round(chargeable_weight * (rates_input[m_type]), 2)
+    amt = amt + making
     st.session_state['items'].append({"Item": item_name, "Net": net, "Rate": rates_input[m_type], "Amount": amt, "Img": img_str})
     st.rerun()
 
