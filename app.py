@@ -86,24 +86,12 @@ with col2:
 if st.button("Add to Invoice"):
     if 'items' not in st.session_state:
         st.session_state['items'] = []
-
     net = round(g_wt - s_wt, 3)
-    wastage = round(net * 0.15, 3)
-    chargeable_weight = round(net + wastage, 3)
-
+    chargeable_weight = round(net * 1.15, 3)
     amt = round(chargeable_weight * (rates_input[m_type] + making), 2)
-
-    st.session_state['items'].append({
-        "Item": item_name,
-        "Net Weight": net,
-        "Wastage (15%)": wastage,
-        "Chargeable Weight": chargeable_weight,
-        "Rate": rates_input[m_type],
-        "Amount": amt,
-        "Img": img_str
-    })
-
+    st.session_state['items'].append({"Item": item_name, "Net": net, "Rate": rates_input[m_type], "Amount": amt, "Img": img_str})
     st.rerun()
+
 if len(st.session_state.get('items', [])) > 0:
     st.subheader("Current Invoice")
     df = pd.DataFrame(st.session_state['items'])
