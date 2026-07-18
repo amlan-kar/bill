@@ -16,10 +16,11 @@ GOLD_API_KEY = "goldapi-9a71fe00f592364fcbf030e1a6a549dd-io"
 
 st.set_page_config(page_title="KarArtz POS", layout="wide")
 
+# --- Initialization ---
 if 'items' not in st.session_state:
-    st.session_state.items = []
+    st.session_state['items'] = []
 if 'rates' not in st.session_state:
-    st.session_state.rates = {"24KT": 0.0, "22KT": 0.0, "18KT": 0.0, "14KT": 0.0, "9KT": 0.0, "Silver": 0.0}
+    st.session_state['rates'] = {"24KT": 0.0, "22KT": 0.0, "18KT": 0.0, "14KT": 0.0, "9KT": 0.0, "Silver": 0.0}
 
 def fetch_rates():
     headers = {"x-access-token": GOLD_API_KEY}
@@ -56,13 +57,14 @@ def generate_pdf(customer_name, items):
     doc.build(elements)
     return buf.getvalue()
 
-# --- UI ---
+# --- Sidebar ---
 st.sidebar.header("Market Rates")
 if st.sidebar.button("Fetch Live Rates"): fetch_rates()
 rates_input = {}
 for k in st.session_state.rates:
     rates_input[k] = st.sidebar.number_input(f"{k} Rate", value=float(st.session_state.rates[k]))
 
+# --- Main UI ---
 st.title("KarArtz POS Terminal")
 col1, col2 = st.columns([2, 1])
 with col1:
@@ -82,19 +84,21 @@ with col2:
     if src: img_str = f"data:image/jpeg;base64,{base64.b64encode(src.getvalue()).decode()}"
 
 if st.button("Add to Invoice"):
+    if 'items' not in st.session_state:
+        st.session_state['items'] = []
     net = round(g_wt - s_wt, 3)
     amt = round(net * (rates_input[m_type] + making), 2)
-    st.session_state.items.append({"Item": item_name, "Net": net, "Rate": rates_input[m_type], "Amount": amt, "Img": img_str})
+    st.session_state['items'].append({"Item": item_name, "Net": net, "Rate": rates_input[m_type], "Amount": amt, "Img": img_str})
     st.rerun()
 
-if len(st.session_state.items) > 0:
+if len(st.session_state.get('items', [])) > 0:
     st.subheader("Current Invoice")
-    df = pd.DataFrame(st.session_state.items)
+    df = pd.DataFrame(st.session_state['items'])
     st.table(df[["Item", "Net", "Amount"]])
-    pdf_bytes = generate_pdf(cust, st.session_state.items)
+    pdf_bytes = generate_pdf(cust, st.session_state['items'])
     st.download_button("Download PDF", data=pdf_bytes, file_name=f"Invoice_{cust}.pdf")
     if st.button("Clear Invoice"): 
-        st.session_state.items = []
+        st.session_state['items'] = []
         st.rerun()
 else:
     st.info("No items added to invoice yet.")
