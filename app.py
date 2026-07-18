@@ -4,29 +4,17 @@ import base64
 import io
 import requests
 from datetime import datetime
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage, HRFlowable
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import inch
-from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 
 # --- Config ---
-COMPANY_NAME = "KARARTZ JEWELLERS"
-COMPANY_DETAILS = "Exquisite Gold & Silver Jewelry | GSTIN: 07AAAAA0000A1Z5"
-ADDRESS = "123 Jewel Lane, Gold Bazaar, Mumbai - 400001"
+COMPANY_NAME = "KarArtz Jewellers"
 GOLD_API_KEY = "goldapi-9a71fe00f592364fcbf030e1a6a549dd-io"
 
-st.set_page_config(page_title="KarArtz POS Premium", layout="wide")
-
-# --- Custom CSS ---
-css_styles = r'''<style>
-.main { background-color: #f5f7f9; }
-.stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #1a242f; color: white; }
-.stDownloadButton>button { background-color: #27ae60 !important; color: white !important; }
-h1 { color: #1a242f; }
-</style>'''
-st.markdown(css_styles, unsafe_allow_html=True)
+st.set_page_config(page_title="KarArtz POS", layout="wide")
 
 # --- Initialization ---
 if 'items' not in st.session_state:
@@ -47,88 +35,70 @@ def fetch_rates():
         s = requests.get("https://www.goldapi.io/api/XAG/INR", headers=headers).json()
         if "price_gram" in s: st.session_state.rates["Silver"] = round(s["price_gram"], 2)
         st.success("Rates Updated!")
-    except: st.error("API connection failed.")
+    except: st.error("API Fetch Failed")
 
 def generate_pdf(customer_name, items):
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    doc = SimpleDocTemplate(buf, pagesize=A4)
     styles = getSampleStyleSheet()
-    
-    title_style = ParagraphStyle('T', fontSize=22, textColor=colors.HexColor("#1a242f"), spaceAfter=10, fontName="Helvetica-Bold")
-    header_style = ParagraphStyle('H', fontSize=10, textColor=colors.grey, spaceAfter=2)
-    label_style = ParagraphStyle('L', fontSize=10, fontName="Helvetica-Bold")
-
-    elements = []
-    header_data = [[
-        [Paragraph(COMPANY_NAME, title_style), Paragraph(COMPANY_DETAILS, header_style), Paragraph(ADDRESS, header_style)],
-        [Paragraph("INVOICE", ParagraphStyle('Inv', fontSize=20, alignment=TA_RIGHT, textColor=colors.grey)),
-         Paragraph(f"<b>Date:</b> {datetime.now().strftime('%d-%b-%Y')}", ParagraphStyle('D', alignment=TA_RIGHT))]
-    ]]
-    header_table = Table(header_data, colWidths=[4*inch, 3*inch])
-    elements.append(header_table)
-    elements.append(HRFlowable(width="100%", thickness=1, color=colors.lightgrey, spaceBefore=10, spaceAfter=15))
-    
-    elements.append(Paragraph(f"<b>BILL TO:</b> {customer_name}", label_style))
-    elements.append(Spacer(1, 15))
-
-    data = [["Item", "Metal", "Net Wt", "Charge Wt", "Rate/g", "Amount"]]
+    elements = [Paragraph(COMPANY_NAME, ParagraphStyle('T', parent=styles['Heading1'], fontSize=24)), Paragraph(f"Customer: {customer_name}"), Spacer(1, 20)]
+    data = [["Photo", "Item", "Weight", "Rate", "Total"]]
     for i in items:
-        data.append([
-            i.get('Item', '-'), i.get('Type', '-'), 
-            f"{i.get('Net', 0)}g", f"{i.get('ChargeWt', 0)}g", 
-            f"{i.get('TotalRate', 0):,.2f}", f"{i.get('Amount', 0):,.2f}"
-        ])
-
-    t = Table(data, colWidths=[2.2*inch, 0.8*inch, 0.9*inch, 1.0*inch, 1.1*inch, 1.3*inch])
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1a242f")), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'), ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9f9f9")])
-    ]))
+        img = ""
+        if i.get("Img"):
+            try:
+                header, encoded = i["Img"].split(",", 1)
+                img = RLImage(io.BytesIO(base64.b64decode(encoded)), width=0.7*inch, height=0.7*inch)
+            except: img = "Error"
+        data.append([img, i.get('Item', '-'), f"{i.get('Net', 0)}g", i.get('Rate', 0), f"{i.get('Amount', 0):.2f}"])
+    t = Table(data, colWidths=[1*inch, 2.5*inch, 1*inch, 1*inch, 1.2*inch])
+    t.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('VALIGN', (0,0), (-1,-1), 'TOP')]))
     elements.append(t)
-    
-    total_amt = sum(i.get('Amount', 0) for i in items)
-    elements.append(Spacer(1, 20))
-    elements.append(Paragraph(f"<div align='right'><b>GRAND TOTAL: INR {total_amt:,.2f}</b></div>", styles['Normal']))
     doc.build(elements)
     return buf.getvalue()
 
-# --- UI ---
-st.title("💎 KarArtz Premium POS")
-with st.expander("📊 Live Market Rates"):
-    if st.button("🔄 Sync Market Rates"): fetch_rates()
-    r_cols = st.columns(6)
-    for idx, (k, v) in enumerate(st.session_state.rates.items()):
-        r_cols[idx].metric(k, f"₹{v:,.0f}")
+# --- Sidebar ---
+st.sidebar.header("Market Rates")
+if st.sidebar.button("Fetch Live Rates"): fetch_rates()
+rates_input = {}
+for k in st.session_state.rates:
+    rates_input[k] = st.sidebar.number_input(f"{k} Rate", value=float(st.session_state.rates[k]))
 
-col_main, col_side = st.columns([2, 1])
-with col_main:
-    st.subheader("📝 Item Entry")
+# --- Main UI ---
+st.title("KarArtz POS Terminal")
+col1, col2 = st.columns([2, 1])
+with col1:
     cust = st.text_input("Customer Name", "Walk-in")
     item_name = st.text_input("Item Description")
-    c1, c2, c3 = st.columns(3)
-    m_type = c1.selectbox("Metal Type", list(st.session_state.rates.keys()))
-    g_wt = c2.number_input("Gross Wt (g)", min_value=0.0, step=0.001)
-    s_wt = c3.number_input("Stone Wt (g)", min_value=0.0, step=0.001)
-    making = st.number_input("Making Charge (per gram)", min_value=0.0)
+    m_col1, m_col2 = st.columns(2)
+    m_type = m_col1.selectbox("Metal Type", list(st.session_state.rates.keys()))
+    g_wt = m_col2.number_input("Gross Wt (g)", min_value=0.0)
+    s_wt = st.number_input("Stone Wt (g)", min_value=0.0)
+    making = st.number_input("Making Charge /g", min_value=0.0)
+with col2:
+    st.write("Item Photo")
+    photo_input = st.camera_input("Capture")
+    upload_input = st.file_uploader("Or Upload", type=['jpg','png'])
+    img_str = None
+    src = photo_input if photo_input else upload_input
+    if src: img_str = f"data:image/jpeg;base64,{base64.b64encode(src.getvalue()).decode()}"
 
-    if st.button("➕ Add Item"):
-        net = round(max(g_wt - s_wt, 0), 3)
-        charge_wt = round(net * 1.15, 3)
-        rate = st.session_state.rates[m_type]
-        amt = round(charge_wt * (rate + making), 2)
-        st.session_state['items'].append({"Item": item_name, "Type": m_type, "Net": net, "ChargeWt": charge_wt, "Rate": rate, "TotalRate": rate+making, "Amount": amt})
+if st.button("Add to Invoice"):
+    if 'items' not in st.session_state:
+        st.session_state['items'] = []
+    net = round(g_wt - s_wt, 3)
+    amt = round(net * (rates_input[m_type] + making), 2)
+    st.session_state['items'].append({"Item": item_name, "Net": net, "Rate": rates_input[m_type], "Amount": amt, "Img": img_str})
+    st.rerun()
+
+if len(st.session_state.get('items', [])) > 0:
+    st.subheader("Current Invoice")
+    df = pd.DataFrame(st.session_state['items'])
+    st.table(df[["Item", "Net", "Amount"]])
+    pdf_bytes = generate_pdf(cust, st.session_state['items'])
+    st.download_button("Download PDF", data=pdf_bytes, file_name=f"Invoice_{cust}.pdf")
+    if st.button("Clear Invoice"): 
+        st.session_state['items'] = []
         st.rerun()
-
-with col_side:
-    st.subheader("📄 Invoice Summary")
-    if st.session_state['items']:
-        df = pd.DataFrame(st.session_state['items'])
-        st.dataframe(df[["Item", "ChargeWt", "Amount"]], use_container_width=True)
-        st.markdown(f"### Total: ₹{df['Amount'].sum():,.2f}")
-        pdf_data = generate_pdf(cust, st.session_state['items'])
-        st.download_button("📥 Download PDF", data=pdf_data, file_name=f"Invoice_{cust}.pdf")
-        if st.button("🗑️ Clear All"): 
-            st.session_state['items'] = []
-            st.rerun()
-    else: st.info("No items added.")
+else:
+    st.info("No items added to invoice yet.")
