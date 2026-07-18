@@ -20,12 +20,13 @@ GOLD_API_KEY = "goldapi-9a71fe00f592364fcbf030e1a6a549dd-io"
 st.set_page_config(page_title="KarArtz POS Premium", layout="wide")
 
 # --- Custom CSS ---
-st.markdown(f'''<style>
+css_styles = r'''<style>
 .main { background-color: #f5f7f9; }
 .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #1a242f; color: white; }
 .stDownloadButton>button { background-color: #27ae60 !important; color: white !important; }
 h1 { color: #1a242f; }
-</style>''', unsafe_allow_html=True)
+</style>'''
+st.markdown(css_styles, unsafe_allow_html=True)
 
 # --- Initialization ---
 if 'items' not in st.session_state:
